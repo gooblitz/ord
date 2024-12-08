@@ -303,6 +303,19 @@ impl Inscription {
       || self.metaprotocol.is_some()
       || matches!(self.media(), Media::Code(_) | Media::Text | Media::Unknown)
   }
+
+  pub fn unbind(&self) -> bool {
+    use regex::bytes::Regex;
+    lazy_static! {
+      static ref BRC_20: Regex = Regex::new(r#"^\s*\{[^}]*"p"\s*:\s*"brc-20"[^}]*\}\s*$"#).unwrap();
+    }
+    self
+      .body()
+      .map(|body| BRC_20.is_match(body))
+      .unwrap_or_default()
+  }
+
+
 }
 
 #[cfg(test)]
@@ -904,4 +917,69 @@ mod tests {
     }
     .hidden());
   }
+
+  #[test]  
+  fn unbind() {  
+    // Test cases that should return true  
+    assert!(Inscription {  
+        body: Some(b"{\"p\":\"brc-20\"}".as_slice().into()),  
+        ..Default::default()  
+    }  
+    .unbind());  
+
+    assert!(Inscription {  
+        body: Some(b"{\"p\":\"brc-20\",\"op\":\"mint\",\"tick\":\"sats\",\"amt\":\"100000000\"}".as_slice().into()),  
+        ..Default::default()  
+    }  
+    .unbind());  
+
+    assert!(Inscription {  
+        body: Some(b"{ \"op\":\"mint\", \"p\":\"brc-20\", \"tick\":\"sats\", \"amt\":\"100000000\" }".as_slice().into()),  
+        ..Default::default()  
+    }  
+    .unbind());  
+
+    assert!(Inscription {  
+        body: Some(b" \t\n\r{ \"p\" : \"brc-20\" } \t\n\r".as_slice().into()),  
+        ..Default::default()  
+    }  
+    .unbind());  
+
+    // Test cases that should return false  
+    assert!(!Inscription {  
+        body: Some(b"{}".as_slice().into()),  
+        ..Default::default()  
+    }  
+    .unbind());  
+
+    assert!(!Inscription {  
+        body: Some(b"{\"p\":\"\"}".as_slice().into()),  
+        ..Default::default()  
+    }  
+    .unbind());  
+
+    assert!(!Inscription {  
+        body: Some(b"{\"p\":\"not-brc-20\"}".as_slice().into()),  
+        ..Default::default()  
+    }  
+    .unbind());  
+
+    assert!(!Inscription {  
+        body: Some(b"{\"foo\":100}".as_slice().into()),  
+        ..Default::default()  
+    }  
+    .unbind());  
+
+    assert!(!Inscription {  
+        body: Some(b"foo{}bar".as_slice().into()),  
+        ..Default::default()  
+    }  
+    .unbind());  
+
+    assert!(!Inscription {  
+        body: Some(b"{\n}".as_slice().into()),  
+        ..Default::default()  
+    }  
+    .unbind());  
+  }  
 }
